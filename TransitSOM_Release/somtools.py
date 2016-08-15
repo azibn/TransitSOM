@@ -82,14 +82,14 @@ def MapErrors_MC(somobject,dataarray,errorarray,niter):
         map_all[:,:,iter] = map_iter
     return map_all
 
-def Proportions(klayer,mapped,groups,ngroups,bins):
+def Proportions(klayer,mapped,groups,ngroups,binsx,binsy):
     percentages = np.zeros([klayer.shape[0],klayer.shape[1]])
     toreturn = []
     hists = []
     for groupidx in range(ngroups):
         map = groups == groupidx
-        hists.append(np.histogram2d(mapped[map][:,0],mapped[map][:,1],bins=bins)[0])
-    sum = np.zeros([bins,bins])
+        hists.append(np.histogram2d(mapped[map][:,0],mapped[map][:,1],bins=[binsx,binsy])[0])
+    sum = np.zeros([binsx,binsy])
     for h in hists:
         #print h.shape
         sum += h

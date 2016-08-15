@@ -116,9 +116,7 @@ def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag
                 
         
         else:  #create new proportions
-            #SOMTOOLS PROPORTIONS ONLY WORKS FOR SQUARE SOMS AT THIS POINT. CAN UPDATE.
-            prop ,prop_weights= somtools.Proportions(som.K,mapped,groups,2,som.K.shape[0])
-        print map_all
+            prop ,prop_weights= somtools.Proportions(som.K,mapped,groups,2,som.K.shape[0],som.K.shape[1])
         class_probs = somtools.Classify(map_all,prop,2,prop_weights) 
         planet_prob = class_probs[:,0] / np.sum(class_probs,axis=1)
  

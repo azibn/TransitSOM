@@ -1,6 +1,6 @@
 #SOM tools
 import numpy as np
-from sklearn.metrics import confusion_matrix
+#from sklearn.metrics import confusion_matrix
 #differentiator to look for changes in template pixel to pixel
 
 def KohonenSave(layer,outfile):  #basically a 3d >> 2d saver
@@ -149,10 +149,10 @@ def Classify_Distances(map_all,avgdistances):
 #def ConfMatrix_probs(class_probs,groups)
 
 
-def ConfMatrix(class_probs,groups):
-    classmaxindices = np.argmax(class_probs,axis=1)
-    confmatrix = confusion_matrix(groups,classmaxindices)
-    return confmatrix
+#def ConfMatrix(class_probs,groups):
+#    classmaxindices = np.argmax(class_probs,axis=1)
+#    confmatrix = confusion_matrix(groups,classmaxindices)
+#    return confmatrix
     
 def ChiSqDist(template,base):
     #chi square distance?

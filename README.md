@@ -4,4 +4,5 @@ A Self-Organising Map for Kepler and K2 Transits
 Requirements:
 -Python 2.7 (with numpy, scipy)
 -PYMVPA (http://www.pymvpa.org/)
--Matplotlib (for plottools.py only)
+
+User-facing functions are in TransitSOM_Release.py with descriptions. Other libraries contain utility functions.

@@ -5,4 +5,4 @@ Requirements:
 -Python 2.7 (with numpy, scipy)
 -PYMVPA (http://www.pymvpa.org/)
 
-User-facing functions are in TransitSOM_Release.py with descriptions. Other libraries contain utility functions.
+User-facing functions are in TransitSOM_release.py with descriptions. Other libraries contain utility functions.

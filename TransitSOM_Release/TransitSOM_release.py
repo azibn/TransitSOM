@@ -1,71 +1,81 @@
 #convenience functions for TransitSOM release
 
-import somtools
-#reload(somtools)
-import utils
-#reload(utils)
-import selfsom
 import os
 import numpy as np
 
-
-
 def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
+    """
+        Takes a list of lightcurve files and produces a SOM array suitable for classification or training.
+    
+            Args:
+                filelist: List of lightcurve files. Files should be in format time, flux, error. 
+                periods: Array of orbital periods, one per input file.
+                t0s: Array of epochs, one per input file
+                tdurs: Transit durations, one per input file
+                nbins: Number of bins to make across 3 transit duration window centred on transit. Empty bins will be interpolated linearly.
+              
+            Returns:
+                SOMarray: Array of binned normalised lightcurves
+                SOMarray_errors: Array of binned lightcurve errors
+                som_ids: The index in filelist of each lightcurve file used (files with no transit data are ignored)
+    """
+    try:
+        import utils
+    except ImportError:
+        print 'Accompanying libraries not in PYTHONPATH or current directory'
+        return 0,0,0
+    
+    try:
+        assert len(filelist)==len(periods)==len(t0s)==len(tdurs)
+    except AssertionError:
+        print 'Filelist, periods, epochs and transit duration arrays must be 1D arrays or lists of the same size'
+        return 0,0,0
 
-    #    Takes a list of lightcurve files and produces a SOM array suitable for classification or training.
-    #
-    #        Args:
-    #            filelist: List of lightcurve files. Files should be in format time, flux, error. 
-    #            periods: Orbital periods, one per input file.
-    #            t0s: Epochs, one per input file
-    #            tdurs: Transit durations, one per input file
-    #            nbins: Number of bins to make across 3 transit duration window centred on transit. Empty bins will be interpolated linearly.
-    #          
-    #        Returns:
-    #            SOMarray: Array of binned normalised lightcurves
-    #            SOMarray_errors: Array of binned lightcurve errors
-    #            som_ids: The index in filelist of each lightcurve file used (files with no transit data are ignored)
-     
+        
     SOMarray_bins = []
     som_ids = []
     SOMarray_binerrors = []
     for i,infile in enumerate(filelist):
-        print i
+        print 'Preparing '+infile
         if os.path.exists(infile):
-            #load lightcurve file  REMOVE SKIP HEADER AND FIRST ROW CUT IN PRACTICE
+            #load lightcurve file 
             #lc = np.genfromtxt(infile,skip_header=35)
             #lc = lc[:,(0,2,3)]
-            lc = np.genfromtxt(infile)
-            lc = lc[~np.isnan(lc[:,1]),:]
+            try:
+                lc = np.genfromtxt(infile)
 
-            #get period,T0, Tdur for KOI data
-            per = periods[i]
-            t0 = t0s[i]
-            tdur = tdurs[i]
+                lc = lc[~np.isnan(lc[:,1]),:]
+
+                #get period,T0, Tdur for KOI data
+                per = float(periods[i])
+                t0 = float(t0s[i])
+                tdur = float(tdurs[i])
             
-            #phase fold (transit at 0.5)         
-            phase = utils.phasefold(lc[:,0],per,t0-per*0.5)
-            idx = np.argsort(phase)
-            lc = lc[idx,:]
-            phase = phase[idx]
+                #phase fold (transit at 0.5)         
+                phase = utils.phasefold(lc[:,0],per,t0-per*0.5)
+                idx = np.argsort(phase)
+                lc = lc[idx,:]
+                phase = phase[idx]
 
-            #cut to relevant region
-            tdur_phase = tdur/per
-            lowidx = np.searchsorted(phase,0.5-tdur_phase*1.5)
-            highidx = np.searchsorted(phase,0.5+tdur_phase*1.5)
-            lc = lc[lowidx:highidx,:]
-            phase = phase[lowidx:highidx]
+                #cut to relevant region
+                tdur_phase = tdur/per
+                lowidx = np.searchsorted(phase,0.5-tdur_phase*1.5)
+                highidx = np.searchsorted(phase,0.5+tdur_phase*1.5)
+                lc = lc[lowidx:highidx,:]
+                phase = phase[lowidx:highidx]
 
-            #perform binning
-            if len(lc[:,0]) != 0: 
+                #perform binning
+                if len(lc[:,0]) != 0: 
                 
-                binphases,SOMtransit_bin,binerrors = utils.GetBinnedVals(phase,lc[:,1],lc[:,2],lc[:,2],nbins,clip_outliers=5)    
+                    binphases,SOMtransit_bin,binerrors = utils.GetBinnedVals(phase,lc[:,1],lc[:,2],lc[:,2],nbins,clip_outliers=5)    
 
-            #append to SOMarray:
-                SOMarray_bins.append(SOMtransit_bin)
-                som_ids.append(i)
-                SOMarray_binerrors.append(binerrors)
-    
+                #append to SOMarray:
+                    SOMarray_bins.append(SOMtransit_bin)
+                    som_ids.append(i)
+                    SOMarray_binerrors.append(binerrors)
+            except:
+                print 'Error loading or binning '+infile
+                print 'Skipping '+infile    
     #normalise arrays, and interpolate nans where necessary
     SOMarray = np.array(SOMarray_bins)
     SOMarray_errors = np.array(SOMarray_binerrors)
@@ -75,42 +85,49 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
   
 #missionflag= 0 for kepler, 1 for k2
 def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag=0,case=1,map_all=np.zeros([5,5,5])-1):
-
-    #    Produces Theta1 or Theta2 statistic to classify transit shapes
-    #
-    #        Args:
-    #            SOMarray: Array of normalised inputs (e.g. binned transits), of shape [n_inputs,n_bins]. n_inputs > 1
-    #            SOMerrors: Errors corresponding to SOMarray values.
-    #            n_mc: Number of Monte Carlo iterations, default 1000. Must be positive int >=1.
-    #            som: Trained som object, like output from CreateSOM(). Optional. If not provided, previously trained SOMs will be used.
-    #            groups: Required if case=1 and user som provided. Array of ints, one per SOMarray row. 0 for planets, 1 for false positives, 2 for candidates.
-    #            missionflag: 0 for Kepler, 1 for K2. Ignored if user som provided.        
-    #            case: 1 or 2. 1 for Theta1 statistic, 2 for Theta2.
-    #            map_all: previously run output of somtools.MapErrors_MC(). Will be run if not provided
-    #
-    #        Returns:
-    #            planet_prob: Array of Theta1 or Theta2 statistic, one entry for each row in SOMarray.
-
+    """
+        Produces Theta1 or Theta2 statistic to classify transit shapes using a SOM.
+        Either uses the trained SOM from Armstrong et al (2016), or a user-provided SOM object.
+        If using Armstrong et al (2016) SOM, only Kepler or K2 transits can be classified.
+    
+            Args:
+                SOMarray: Array of normalised inputs (e.g. binned transits), of shape [n_inputs,n_bins]. n_inputs > 1
+                SOMerrors: Errors corresponding to SOMarray values. Must be same shape as SOMarray.
+                n_mc: Number of Monte Carlo iterations, default 1000. Must be positive int >=1.
+                som: Trained som object, like output from CreateSOM(). Optional. If not provided, previously trained SOMs will be used.
+                groups: Required if case=1 and user som provided. Array of ints, one per SOMarray row. 0 for planets, 1 for false positives, 2 for candidates.
+                missionflag: 0 for Kepler, 1 for K2. Ignored if user som provided.        
+                case: 1 or 2. 1 for Theta1 statistic, 2 for Theta2.
+                map_all: previously run output of somtools.MapErrors_MC(). Will be run if not provided
+    
+            Returns:
+                planet_prob: Array of Theta1 or Theta2 statistic, one entry for each row in SOMarray.
+    """
+    try:
+        import somtools
+        import selfsom
+    except ImportError:
+        print 'Accompanying libraries not in PYTHONPATH or current directory'
+        return 0
+    
+    try:
+        assert SOMarray.shape==SOMerrors.shape
+        assert n_mc>=1
+        assert (missionflag==0) or (missionflag==1) or (som!=None)
+        if case ==1:
+            if som!=None:
+                assert groups!=None
+        assert case==1 or case==2
+    except AssertionError:
+        print 'Inputs do not meet requirements. See help.'
 
     #if no SOM, load our SOM (kepler or k2 depending on keplerflag)
     if not som:
         selfflag = 1
-        if missionflag == 0:
-            def Init(sample):
-                return np.random.uniform(0,2,size=(20,20,50))
-            som = selfsom.SimpleSOMMapper((20,20),1,initialization_func=Init,learning_rate=0.1)
-            loadk = somtools.KohonenLoad('snrcut_30_lr01_300_20_20_bin50.txt')
-            som.train(loadk) #tricks the som into thinking it's been trained
-            som._K = loadk  #loads the actual Kohonen layer into place.
+        if missionflag == 0:    
+            som = LoadSOM('snrcut_30_lr01_300_20_20_bin50.txt',20,20,50,0.1)      
         else:
-            def Init(sample):
-                return np.random.uniform(0,2,size=(8,8,20))
-
-            som = selfsom.SimpleSOMMapper((8,8),1,initialization_func=Init,learning_rate=0.1)
-            loadk = somtools.KohonenLoad('/Users/davidarmstrong/Software/Python/TransitSOM/K2/k2all_lr01_500_8_8_bin20.txt')
-            som.train(loadk) #tricks the som into thinking it's been trained
-            som._K = loadk  #loads the actual Kohonen layer into place.        
-
+            som = LoadSOM('k2all_lr01_500_8_8_bin20.txt',8,8,20,0.1)
     else:
         selfflag = 0
 
@@ -138,7 +155,7 @@ def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag
         
         else:  #create new proportions
             prop ,prop_weights= somtools.Proportions(som.K,mapped,groups,2,som.K.shape[0],som.K.shape[1])
-        print map_all
+
         class_probs = somtools.Classify(map_all,prop,2,prop_weights) 
         planet_prob = class_probs[:,0] / np.sum(class_probs,axis=1)
  
@@ -164,20 +181,28 @@ def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag
     
     
 def CreateSOM(SOMarray,niter=500,learningrate=0.1,learningradius=None,somshape=(20,20),outfile=None):
+    """
+        Trains a SOM, using an array of pre-prepared lightcurves. Can save the SOM to text file.
+        Saved SOM can be reloaded using LoadSOM() function.
     
-    #    Trains a SOM.
-    #
-    #        Args:
-    #            SOMarray: Array of normalised inputs (e.g. binned transits), of shape [n_inputs,n_bins]. n_inputs > 1
-    #            niter: number of training iterations, default 500. Must be positive integer.
-    #            learningrate: alpha parameter, default 0.1. Must be positive.
-    #            learningradius: sigma parameter, default the largest input SOM dimension. Must be positive.
-    #            somshape: shape of SOM to train, default (20,20). Currently must be 2 dimensional (int, int). Need not be square.
-    #            outfile: File path to save SOM Kohonen Layer to. If None will not save.
-    #
-    #        Returns:
-    #            The trained SOM object
-        
+            Args:
+                SOMarray: Array of normalised inputs (e.g. binned transits), of shape [n_inputs,n_bins]. n_inputs > 1
+                niter: number of training iterations, default 500. Must be positive integer.
+                learningrate: alpha parameter, default 0.1. Must be positive.
+                learningradius: sigma parameter, default the largest input SOM dimension. Must be positive.
+                somshape: shape of SOM to train, default (20,20). Currently must be 2 dimensional (int, int). Need not be square.
+                outfile: File path to save SOM Kohonen Layer to. If None will not save.
+    
+            Returns:
+                The trained SOM object
+    """   
+    try:
+        import somtools
+        import selfsom
+    except:
+        print 'Accompanying libraries not in PYTHONPATH or current directory'
+        return 0
+   
     nbins = SOMarray.shape[1]
     
     #default learning radius
@@ -199,4 +224,34 @@ def CreateSOM(SOMarray,niter=500,learningrate=0.1,learningradius=None,somshape=(
         somtools.KohonenSave(som.K,outfile)
     
     #return trained som
+    return som
+
+def LoadSOM(filepath,dim_x,dim_y,nbins,lrate=0.1):
+    """
+        Makes a som object using a saved Kohonen Layer (such as could be saved by CreateSOM().
+    
+            Args:
+                filepath: The path to the saved Kohonen Layer. Must be saved in format created by somtools.KohonenSave().
+                dim_x: The size of the first SOM dimension. Int
+                dim_y: The size of the second SOM dimension. Int
+                nbins: The number of lightcurve bins used (i.e. the 3rd dimension of the Kohonen Layer). Int
+                lrate: The learning rate used to train the SOM. Optional, default=0.1. Included for tidiness, 
+                       if the SOM is not retrained and only used for classification this parameter does not matter.
+            
+            Returns:
+                The SOM object
+    """
+    try:
+        import somtools
+        import selfsom
+    except:
+        print 'Accompanying libraries not in PYTHONPATH or current directory'
+        return 0
+    
+    def Init(sample):
+        return np.random.uniform(0,2,size=(int(dim_x),int(dim_y),int(nbins)))
+    som = selfsom.SimpleSOMMapper((dim_x,dim_y),1,initialization_func=Init,learning_rate=lrate)
+    loadk = somtools.KohonenLoad(filepath)
+    som.train(loadk) #tricks the som into thinking it's been trained
+    som._K = loadk  #loads the actual Kohonen layer into place.
     return som

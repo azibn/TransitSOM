@@ -1,7 +1,4 @@
-#SOM tools
 import numpy as np
-#from sklearn.metrics import confusion_matrix
-#differentiator to look for changes in template pixel to pixel
 
 def KohonenSave(layer,outfile):  #basically a 3d >> 2d saver
     with open(outfile,'w') as f:
@@ -25,45 +22,6 @@ def KohonenLoad(infile):
             for k in range(int(newshape[2])):
                 out[i,j,k] = float(line[k])
     return out
-
-
-def DifferentialGroup_bound(klayer):
-    #klayer = som.K
-    grad = np.zeros([klayer.shape[0],klayer.shape[1]*2])
-    
-    for i in range(klayer.shape[0]):
-        for j in range(klayer.shape[1]):
-        
-            grad[i,j*2] = klayer[np.mod(i+1,klayer.shape[0]),j] - klayer[i,j]
-            
-            grad[i,(j*2)+1] = klayer[i,np.mod(j+1,klayer.shape[1])] - klayer[i,j]
-    return grad
-    
-#returns maximum difference between pixel and neighbours. same shape as input klayer. only accepts 2D SOMs.
-def DifferentialGroup_max(klayer):
-    discrepancy = np.zeros([klayer.shape[0],klayer.shape[1]])
-    testingklayer = np.pad(klayer,((1,1),(1,1),(0,0)),mode='wrap')
-    
-    for i in range(klayer.shape[0]):
-        for j in range(klayer.shape[1]):
-            
-            subarray = testingklayer[i+1:i+3,j+1:j+3]
-            discrepancy[i,j] = np.max(np.abs(np.sum(klayer[i,j] - subarray,axis=2)))
-            
-    return discrepancy
-    
-def DifferentialGroup_mean(klayer):
-    discrepancy = np.zeros([klayer.shape[0],klayer.shape[1]])
-    testingklayer = np.pad(klayer,((1,1),(1,1),(0,0)),mode='wrap')
-    
-    for i in range(klayer.shape[0]):
-        for j in range(klayer.shape[1]):
-            
-            subarray = testingklayer[i+1:i+3,j+1:j+3]
-            discrepancy[i,j] = np.mean(np.abs(np.sum(klayer[i,j] - subarray,axis=2)))
-            
-    return discrepancy
-    
 
     
 def Proportions_2group(klayer,mapped,groups):
@@ -126,36 +84,23 @@ def Classify_P_FP(class_probs,class_weights_P,class_weights_FP):
 
 def Classify_Distances(map_all,avgdistances):
     planet_distances = np.mean(avgdistances[:,:,(0,3)],axis=2)
-    #planet_distances = avgdistances[:,:,0]
     fp_distances = np.mean(avgdistances[:,:,(1,2,4)],axis=2)
     som_power_planet = planet_distances/(planet_distances+fp_distances)
     som_power_fp = fp_distances/(planet_distances+fp_distances)
     
     class_power = np.zeros([map_all.shape[0],2])
-    #class_power = np.zeros([map_all.shape[0]])
     for obj in range(map_all.shape[0]):
         
         for iteridx in range(map_all.shape[2]):
             class_power[obj,0] += som_power_fp[map_all[obj,0,iteridx],map_all[obj,1,iteridx]] 
             class_power[obj,1] += som_power_planet[map_all[obj,0,iteridx],map_all[obj,1,iteridx]]
-            #class_power[obj] += planet_distances[map_all[obj,0,iteridx],map_all[obj,1,iteridx]]
     
     class_power /= map_all.shape[2]
     planet_prob = class_power[:,0] / np.sum(class_power,axis=1)
-    #planet_prob = 1-class_power
     return planet_prob,class_power
     
-
-#def ConfMatrix_probs(class_probs,groups)
-
-
-#def ConfMatrix(class_probs,groups):
-#    classmaxindices = np.argmax(class_probs,axis=1)
-#    confmatrix = confusion_matrix(groups,classmaxindices)
-#    return confmatrix
     
 def ChiSqDist(template,base):
-    #chi square distance?
     return np.sum( np.power( template - base , 2 ) )
 
 def EucDist(template,base):
@@ -176,7 +121,5 @@ def PixelClassifier(klayer,SOMarray,grouparray,ngroups,normalise=False,lowbound=
             maxdist = np.sort(avgdistances[:,:,groupindex].flatten())[-normalise] #ignores the normalise largest distances. These can be anomalies - the key area we want is larger. 5 is a good value for K2
             mindist = np.min(avgdistances[:,:,groupindex])
             avgdistances[:,:,groupindex] = 1./(maxdist-mindist) * (avgdistances[:,:,groupindex]-mindist)
-            #overshoots = np.where(avgdistances[:,:,groupindex] > 1)
-            #avgdistances[overshoots[0],overshoots[1],groupindex] = 1
     return avgdistances
     

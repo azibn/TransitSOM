@@ -9,10 +9,10 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
         Takes a list of lightcurve files and produces a SOM array suitable for classification or training.
     
             Args:
-                filelist: List of lightcurve files. Files should be in format time, flux, error. 
-                periods: Array of orbital periods, one per input file.
-                t0s: Array of epochs, one per input file
-                tdurs: Transit durations, one per input file
+                filelist: List of lightcurve files. Files should be in format time (days), flux, error. 
+                periods: Array of orbital periods in days, one per input file.
+                t0s: Array of epochs in days, one per input file
+                tdurs: Transit durations in days, one per input file.
                 nbins: Number of bins to make across 3 transit duration window centred on transit. Empty bins will be interpolated linearly.
               
             Returns:
@@ -52,7 +52,7 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
 
                 lc = lc[~np.isnan(lc[:,1]),:]
 
-                #get period,T0, Tdur for KOI data
+                #get period, T0, Tdur
                 per = float(periods[i])
                 t0 = float(t0s[i])
                 tdur = float(tdurs[i])
@@ -72,7 +72,6 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
 
                 #perform binning
                 if len(lc[:,0]) != 0: 
-                
                     binphases,SOMtransit_bin,binerrors = utils.GetBinnedVals(phase,lc[:,1],lc[:,2],lc[:,2],nbins,clip_outliers=5)    
 
                 #append to SOMarray:
@@ -82,6 +81,7 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
             except:
                 print 'Error loading or binning '+infile
                 print 'Skipping '+infile    
+                
     #normalise arrays, and interpolate nans where necessary
     SOMarray = np.array(SOMarray_bins)
     SOMarray_errors = np.array(SOMarray_binerrors)
@@ -89,7 +89,7 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
     
     return SOMarray, SOMarray_errors, np.array(som_ids)
   
-#missionflag= 0 for kepler, 1 for k2
+
 def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag=0,case=1,map_all=np.zeros([5,5,5])-1):
     """
         Produces Theta1 or Theta2 statistic to classify transit shapes using a SOM.
@@ -148,7 +148,6 @@ def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag
 
 
     #classify (depending on case)
-    
     if case==1:
         
         if selfflag:  #load pre calculated proportions

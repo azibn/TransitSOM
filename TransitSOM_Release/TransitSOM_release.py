@@ -2,6 +2,7 @@
 
 import os
 import numpy as np
+from types import *
 
 def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
     """
@@ -30,6 +31,11 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
     except AssertionError:
         print 'Filelist, periods, epochs and transit duration arrays must be 1D arrays or lists of the same size'
         return 0,0,0
+    
+    try:
+        assert nbins>0
+    except AssertionError:
+        print 'nbins must be positive integer'
 
         
     SOMarray_bins = []
@@ -111,16 +117,17 @@ def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag
         return 0
     
     try:
-        assert SOMarray.shape==SOMerrors.shape
-        assert n_mc>=1
-        assert (missionflag==0) or (missionflag==1) or (som!=None)
+        assert SOMarray.shape==SOMerrors.shape, 'Error array must be same shape as input array.'
+        assert n_mc>=1, 'Number of Monte Carlo iterations must be >= 1.'
+        assert (missionflag==0) or (missionflag==1) or (som!=None), 'If no user-defined SOM, missionflag must be 0 (Kepler) or 1 (K2).'
         if case ==1:
             if som!=None:
-                assert groups!=None
-        assert case==1 or case==2
-    except AssertionError:
+                assert groups!=None, 'For Case = 1 and user-defined SOM, groups array must be provided.'
+        assert case==1 or case==2, 'Case must be 1 or 2.'
+    except AssertionError as error:
+        print error
         print 'Inputs do not meet requirements. See help.'
-
+        
     #if no SOM, load our SOM (kepler or k2 depending on keplerflag)
     if not som:
         selfflag = 1
@@ -190,7 +197,7 @@ def CreateSOM(SOMarray,niter=500,learningrate=0.1,learningradius=None,somshape=(
                 niter: number of training iterations, default 500. Must be positive integer.
                 learningrate: alpha parameter, default 0.1. Must be positive.
                 learningradius: sigma parameter, default the largest input SOM dimension. Must be positive.
-                somshape: shape of SOM to train, default (20,20). Currently must be 2 dimensional (int, int). Need not be square.
+                somshape: shape of SOM to train, default (20,20). Currently must be 2 dimensional tuple (int, int). Need not be square.
                 outfile: File path to save SOM Kohonen Layer to. If None will not save.
     
             Returns:
@@ -202,7 +209,22 @@ def CreateSOM(SOMarray,niter=500,learningrate=0.1,learningradius=None,somshape=(
     except:
         print 'Accompanying libraries not in PYTHONPATH or current directory'
         return 0
-   
+        
+    try:
+        assert niter >= 1, 'niter must be >= 1.'
+        assert type(niter) is IntType, 'niter must be integer.'
+        assert learningrate > 0, 'learningrate must be positive.'
+        if learningradius:
+            assert learningradius > 0, 'learningradius must be positive.'
+        assert len(somshape)==2, 'SOM must have 2 dimensions.'
+        assert type(somshape[0]) is IntType and type(somshape[1]) is IntType, 'somshape must contain integers.'
+        assert len(SOMarray.shape)==2, 'Input array must be 2D of shape [ninputs, nbins].'
+        assert SOMarray.shape[0]>1, 'ninputs must be greater than 1.'
+    except AssertionError as error:
+        print error
+        print 'Inputs do not meet requirements. See help'
+        return 0
+        
     nbins = SOMarray.shape[1]
     
     #default learning radius
@@ -250,6 +272,7 @@ def LoadSOM(filepath,dim_x,dim_y,nbins,lrate=0.1):
     
     def Init(sample):
         return np.random.uniform(0,2,size=(int(dim_x),int(dim_y),int(nbins)))
+        
     som = selfsom.SimpleSOMMapper((dim_x,dim_y),1,initialization_func=Init,learning_rate=lrate)
     loadk = somtools.KohonenLoad(filepath)
     som.train(loadk) #tricks the som into thinking it's been trained

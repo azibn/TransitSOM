@@ -72,9 +72,9 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50,clip_outliers=5):
                 SOMtransit_bin,binerrors = PrepareOneLightcurve(lc,per,t0,tdur,nbins,clip_outliers)         
 
                 #append to SOMarray:
-                    SOMarray_bins.append(SOMtransit_bin)
-                    som_ids.append(i)
-                    SOMarray_binerrors.append(binerrors)
+                SOMarray_bins.append(SOMtransit_bin)
+                som_ids.append(i)
+                SOMarray_binerrors.append(binerrors)
             except:
                 print 'Error loading or binning '+infile
                 print 'Skipping '+infile   
@@ -193,8 +193,8 @@ def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag
     if len(SOMarray.shape)==1:
         singleflag = 1
         #pretend we have two transits - simpler than rewriting PyMVPA's SOM code
-        SOMarray = np.vstack((SOMarray,np.zeros(len(SOMarray))))
-        SOMerrors = np.vstack((SOMerrors,np.zeros(len(SOMerrors))))
+        SOMarray = np.vstack((SOMarray,np.ones(len(SOMarray))))
+        SOMerrors = np.vstack((SOMerrors,np.ones(len(SOMerrors))))
         
     #apply SOM
     print 'Mapping transit(s) to SOM'

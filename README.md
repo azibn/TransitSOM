@@ -21,4 +21,4 @@ TransitSOM_release.ClassifyPlanet() - Produces Planet/False positive statistics 
 TransitSOM_release.LoadSOM() - loads a SOM that has been saved using CreateSOM()
 
 ***TESTING IS ONGOING, PLEASE CONTACT d.j.armstrong@warwick.ac.uk if problems arise***
-Primarily tested on OSX El Capitan.
+

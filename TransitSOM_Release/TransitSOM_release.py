@@ -18,17 +18,18 @@ import os
 import numpy as np
 from types import *
 
-def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
+def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50,clip_outliers=5):
     """
-        Takes a list of lightcurve files and produces a SOM array suitable for classification or training.
+        Takes a list of lightcurve files and produces a SOM array suitable for classification or training. Single lightcurves should use PrepareOneLightcurve().
     
             Args:
                 filelist: List of lightcurve files. Files should be in format time (days), flux, error. 
                 periods: Array of orbital periods in days, one per input file.
                 t0s: Array of epochs in days, one per input file
-                tdurs: Transit durations in days, one per input file.
-                nbins: Number of bins to make across 3 transit duration window centred on transit. Empty bins will be interpolated linearly.
-              
+                tdurs: Transit durations (T14) in days, one per input file. It is important these are calculated directly from the transit - small errors due to ignoring eccentricity for example will cause bad classifications. 
+                nbins: Number of bins to make across 3 transit duration window centred on transit. Empty bins will be interpolated linearly. (int)
+                clip_outliers: if non-zero, data more than clip_outliers*datapoint error from the bin mean will be ignored.
+                
             Returns:
                 SOMarray: Array of binned normalised lightcurves
                 SOMarray_errors: Array of binned lightcurve errors
@@ -48,6 +49,7 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
     
     try:
         assert nbins>0
+        assert type(nbins) is IntType
     except AssertionError:
         print 'nbins must be positive integer'
 
@@ -58,35 +60,16 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
     for i,infile in enumerate(filelist):
         print 'Preparing '+infile
         if os.path.exists(infile):
-            #load lightcurve file 
-            #lc = np.genfromtxt(infile,skip_header=35)
-            #lc = lc[:,(0,2,3)]
             try:
                 lc = np.genfromtxt(infile)
-
                 lc = lc[~np.isnan(lc[:,1]),:]
 
                 #get period, T0, Tdur
                 per = float(periods[i])
                 t0 = float(t0s[i])
                 tdur = float(tdurs[i])
-            
-                #phase fold (transit at 0.5)         
-                phase = utils.phasefold(lc[:,0],per,t0-per*0.5)
-                idx = np.argsort(phase)
-                lc = lc[idx,:]
-                phase = phase[idx]
-
-                #cut to relevant region
-                tdur_phase = tdur/per
-                lowidx = np.searchsorted(phase,0.5-tdur_phase*1.5)
-                highidx = np.searchsorted(phase,0.5+tdur_phase*1.5)
-                lc = lc[lowidx:highidx,:]
-                phase = phase[lowidx:highidx]
-
-                #perform binning
-                if len(lc[:,0]) != 0: 
-                    binphases,SOMtransit_bin,binerrors = utils.GetBinnedVals(phase,lc[:,1],lc[:,2],lc[:,2],nbins,clip_outliers=5)    
+                
+                SOMtransit_bin,binerrors = PrepareOneLightcurve(lc,per,t0,tdur,nbins,clip_outliers)         
 
                 #append to SOMarray:
                     SOMarray_bins.append(SOMtransit_bin)
@@ -94,14 +77,67 @@ def PrepareLightcurves(filelist,periods,t0s,tdurs,nbins=50):
                     SOMarray_binerrors.append(binerrors)
             except:
                 print 'Error loading or binning '+infile
-                print 'Skipping '+infile    
+                print 'Skipping '+infile   
+        else:
+            print 'File not found: '+infile 
                 
-    #normalise arrays, and interpolate nans where necessary
     SOMarray = np.array(SOMarray_bins)
     SOMarray_errors = np.array(SOMarray_binerrors)
-    SOMarray,SOMarray_errors = utils.PrepareArrays(SOMarray,SOMarray_errors)
-    
     return SOMarray, SOMarray_errors, np.array(som_ids)
+
+
+def PrepareOneLightcurve(lc,per,t0,tdur,nbins=50,clip_outliers=5):
+    """
+        Takes one lightcurve array and bins it to format suitable for classification.
+    
+            Args:
+                lc: Lightcurve array. Columns should be time (days), flux, error. Nans should be removed prior to calling function. 
+                per: Orbital period in days (float)
+                t0: Epoch in days (float)
+                tdur: Transit duration (T14) in days (float). It is important this is calculated directly from the transit - small errors due to ignoring eccentricity for example will cause bad classifications. 
+                nbins: Number of bins to make across 3 transit duration window centred on transit. Empty bins will be interpolated linearly. (int)
+                clip_outliers: if non-zero, data more than clip_outliers*datapoint error from the bin mean will be ignored.
+                
+            Returns:
+                SOMtransit_bin: Binned normalised lightcurve
+                binerrors: Binned lightcurve errors
+    """
+    
+    try:
+        import utils
+    except ImportError:
+        print 'Accompanying libraries not in PYTHONPATH or current directory'
+        return 0,0,0
+    
+    try:
+        assert nbins>0
+        assert type(nbins) is IntType
+    except AssertionError:
+        print 'nbins must be positive integer'
+
+    
+    #phase fold (transit at 0.5)
+    phase = utils.phasefold(lc[:,0],per,t0-per*0.5)
+    idx = np.argsort(phase)
+    lc = lc[idx,:]
+    phase = phase[idx]
+
+    #cut to relevant region
+    tdur_phase = tdur/per
+    lowidx = np.searchsorted(phase,0.5-tdur_phase*1.5)
+    highidx = np.searchsorted(phase,0.5+tdur_phase*1.5)
+    lc = lc[lowidx:highidx,:]
+    phase = phase[lowidx:highidx]
+
+    #perform binning
+    if len(lc[:,0]) != 0:
+        binphases,SOMtransit_bin,binerrors = utils.GetBinnedVals(phase,lc[:,1],lc[:,2],lc[:,2],nbins,clip_outliers=clip_outliers)
+
+    #normalise arrays, and interpolate nans where necessary
+    SOMarray_single,SOMarray_errors_single = utils.PrepareArray(SOMtransit_bin,binerrors)
+
+    return SOMarray_single,SOMarray_errors_single
+        
   
 
 def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag=0,case=1,map_all=np.zeros([5,5,5])-1):
@@ -151,19 +187,27 @@ def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag
             som = LoadSOM('k2all_lr01_500_8_8_bin20.txt',8,8,20,0.1)
     else:
         selfflag = 0
-
+    
+    #check whether we are dealing with one or many transits
+    singleflag = 0
+    if len(SOMarray.shape)==1:
+        singleflag = 1
+        #pretend we have two transits - simpler than rewriting PyMVPA's SOM code
+        SOMarray = np.vstack((SOMarray,np.zeros(len(SOMarray))))
+        SOMerrors = np.vstack((SOMerrors,np.zeros(len(SOMerrors))))
+        
     #apply SOM
+    print 'Mapping transit(s) to SOM'
     mapped = som(SOMarray)
-
 
     #map_all results
     if (map_all<0).all():
         map_all = somtools.MapErrors_MC(som,SOMarray,SOMerrors,n_mc)
-
+    print 'Transit(s) mapped'
 
     #classify (depending on case)
     if case==1:
-        
+        print 'Case 1: Loading or determining pixel proportions'
         if selfflag:  #load pre calculated proportions
             if missionflag==0:
                 prop = somtools.KohonenLoad('prop_snrcut_all_kepler.txt')
@@ -175,28 +219,34 @@ def ClassifyPlanet(SOMarray,SOMerrors,n_mc=1000,som=None,groups=None,missionflag
         
         else:  #create new proportions
             prop ,prop_weights= somtools.Proportions(som.K,mapped,groups,2,som.K.shape[0],som.K.shape[1])
-
+        
+        print 'Case 1: Beginning classification'
         class_probs = somtools.Classify(map_all,prop,2,prop_weights) 
         planet_prob = class_probs[:,0] / np.sum(class_probs,axis=1)
  
     else:
-
-            if selfflag:
-                if missionflag==0:
-                    testdistances = somtools.KohonenLoad('testdistances_kepler.txt')
-                else:
-                    testdistances = somtools.KohonenLoad('testdistances_k2.txt')
-                
+        print 'Case 2: Loading or determining pixel distances'   
+        if selfflag:
+            if missionflag==0:
+                testdistances = somtools.KohonenLoad('testdistances_kepler.txt')
             else:
-                SOMarray_PDVM = np.genfromtxt('SOMarray_PDVM_perfect_norm.txt')
-                groups_PDVM = np.genfromtxt('groups_PDVM_perfect_norm.txt')
-                lowbound = np.floor(SOMarray.shape[1]/3).astype('int')-1
-                testdistances = somtools.PixelClassifier(som.K,SOMarray_PDVM,groups_PDVM,6,lowbound=lowbound,highbound=2*lowbound+3)
+                testdistances = somtools.KohonenLoad('testdistances_k2.txt')
+                
+        else:
+            SOMarray_PDVM = np.genfromtxt('SOMarray_PDVM_perfect_norm.txt')
+            groups_PDVM = np.genfromtxt('groups_PDVM_perfect_norm.txt')
+            lowbound = np.floor(SOMarray.shape[1]/3).astype('int')-1
+            testdistances = somtools.PixelClassifier(som.K,SOMarray_PDVM,groups_PDVM,6,lowbound=lowbound,highbound=2*lowbound+3)
             
-            #apply classification
-            planet_prob,class_power = somtools.Classify_Distances(map_all,testdistances)
+        print 'Case 2: Beginning classification'
+        planet_prob,class_power = somtools.Classify_Distances(map_all,testdistances)
 
+    print 'Classification complete'
     
+    #remove faked transit result
+    if singleflag:
+        planet_prob = planet_prob[0]
+            
     return planet_prob
     
     

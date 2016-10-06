@@ -77,7 +77,7 @@ def Classify(map_all,proportions,ngroups,proportion_weights):
     class_probs = np.zeros([map_all.shape[0],ngroups])
     localnormalise = np.zeros([map_all.shape[0],ngroups])
     for obj in range(map_all.shape[0]):
-        print obj
+        #print obj
         for classidx in range(ngroups):
             for iteridx in range(map_all.shape[2]):
                 localprop = proportions[classidx][map_all[obj,0,iteridx],map_all[obj,1,iteridx]]
@@ -125,7 +125,7 @@ def EucDist(template,base):
 def PixelClassifier(klayer,SOMarray,grouparray,ngroups,normalise=False,lowbound=0,highbound=1000):
     avgdistances = np.zeros([klayer.shape[0],klayer.shape[1],ngroups])
     for xpixel in range(klayer.shape[0]):
-        print xpixel
+        #print xpixel
         for ypixel in range(klayer.shape[1]):
             distances = np.zeros(SOMarray.shape[0])
             for dataindex in range(SOMarray.shape[0]):

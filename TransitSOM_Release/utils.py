@@ -50,11 +50,12 @@ def GetBinnedVals(time,x,lowerr,higherr,bins,clip_outliers=0):
     #ignored in producing the final bin values
     ###
     
-    tobin = np.zeros([len(x),3])
+    tobin = np.zeros([len(x),4])
     tobin[:,0] = x
     tobin[:,1] = np.power(2./(higherr+lowerr),2)
     tobin[:,2] = (higherr+lowerr)/2.
-
+    tobin[:,3] = np.ones(len(x))*clip_outliers
+    
     bin_edges = np.linspace(time[0], time[-1], bins+1)
     bin_edges[-1]+=0.0001                               #avoids edge problems
     binnumber = np.digitize(time, bin_edges)
@@ -110,20 +111,28 @@ def GetBinnedVals_nooutliers(time,x,lowerr,higherr,bins):
             binerrors[i] = np.nan
     
     binnedtimes = (bin_edges[1:]+bin_edges[:-1])/2.
-
     return binnedtimes,timemeans,binerrors
 
 def PrepareArrays(SOMarray,errorarray):
-      
+
     #replace nans with interpolation, normalise transits
     
     for idx in range(SOMarray.shape[0]):
         mask = np.isnan(SOMarray[idx,:])
+        #edge cases given closest valid bin value
         SOMarray[idx,mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), SOMarray[idx,~mask])
         SOMarray[idx,:],errorarray[idx,:] = SOMNormalise(SOMarray[idx,:],errorarray[idx,:])
-
     return SOMarray,errorarray
     
+def PrepareArray(SOMarray_single,errorarray_single):
+
+    #replace nans with interpolation, normalise transits
+    
+    mask = np.isnan(SOMarray_single)
+    #edge cases given closest valid bin value
+    SOMarray_single[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), SOMarray_single[~mask])
+    SOMarray_single,errorarray_single = SOMNormalise(SOMarray_single,errorarray_single)
+    return SOMarray_single,errorarray_single
     
 def SOMNormalise(flux,errors):
 
